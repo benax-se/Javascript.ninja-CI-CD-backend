@@ -5,7 +5,7 @@ cache:
   key:
     files:
       - package-lock.json
-  path:
+  paths:
     - .npm/
 
 before_script:
