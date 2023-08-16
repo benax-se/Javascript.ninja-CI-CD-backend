@@ -36,7 +36,7 @@ jobs:
         env:
           cache-name: npm-${{ hashFiles('package-lock.json') }}
         with:
-          path: ~/.npm
+          path: .npm
           key: ${{ env.cache-name }}
           restore-keys: ${{ env.cache-name }}
       # Установка зависимостей проекта
