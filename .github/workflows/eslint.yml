@@ -44,7 +44,7 @@ jobs:
         run: export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" --no-use && nvm install
       # Установка зависимостей проекта
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
       # Запуск ESLint
       - name: Lint source code with ESLint
         run: npm run lint
@@ -73,7 +73,7 @@ jobs:
         run: export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" --no-use && nvm install
       # Установка зависимостей проекта
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
       # Запуск ESLint
       - name: Lint source code with Prettier
         run: npm run check:format
