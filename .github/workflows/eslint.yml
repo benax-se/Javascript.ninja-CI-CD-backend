@@ -18,6 +18,6 @@ jobs:
           NODE_VERSION: 14.17.0
         run: export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" --no-use && nvm install
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
       - name: Lint source code with Eslint
         run: npm run lint
