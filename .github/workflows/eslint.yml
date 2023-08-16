@@ -24,21 +24,16 @@ jobs:
     name: ESLint
     # обязательный параметр, который указывает где будет запущена job: облачнный runner, self-hosted и т.д.
     runs-on: ubuntu-latest
-    container: node:14.17.0-alpine
     # последовательные задачи (шаги), важно помнить, что переменные окружения не сохраняются
     # между шагами и их нужно пробрасывать, если требуется.
     steps:
       # указываем action, который будет запущен как часть job
       # В текущем случае это клонирование репозитория
       - uses: actions/checkout@v2
-      - name: cache node modules
-        uses: actions/cache@v2
-        env:
-          cache-name: npm-${{ hashFiles('package-lock.json') }}
+      - uses: actions/setup-node@v3
         with:
-          path: .npm
-          key: ${{ env.cache-name }}
-          restore-keys: ${{ env.cache-name }}
+          node-version: 14.17.0
+          cache: 'npm'
       # Установка зависимостей проекта
       - name: Install dependencies
         run: npm install --legacy-peer-deps
