@@ -48,7 +48,7 @@ jobs:
       # Запуск ESLint
       - name: Lint source code with ESLint
         run: npm run lint
-  prettier:
+
     # имя для отображения в интерфейсе GitHub
     name: Prettier
     # обязательный параметр, который указывает где будет запущена job: облачнный runner, self-hosted и т.д.
