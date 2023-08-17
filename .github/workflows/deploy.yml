@@ -1,0 +1,48 @@
+
+name: Deploy
+on:
+  push:
+    branches: [main]
+  # специальное событие, которое происходит при ручном вызове workflow
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          # создаем директорию для ключа
+          mkdir -p ~/.ssh
+          # выводим содержимое нашей переменной окружения в файл
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/ci-key
+          # ставим нужные безопасные права
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/ci-key
+          # Добавляем отпечаток сервера
+          echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+      - name: Copy files to the server
+        env:
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+        # заливаем файлы при помощи rsync
+        run: |
+          rsync -a --progress --human-readable --delete \
+          # исключить все, что есть в .gitignore
+          --exclude-from '.gitignore' \
+          # не загружаем .gitignore
+          --exclude .gitignore \
+          # не загружаем .git
+          --exclude .git \
+          # Не удаляем директорию с нашим фронтендом
+          --exclude public \
+          . deploy@${REMOTE_HOST}:~/realworld/
+      # job для перезапуска приложения при помощи pm2
+      - name: Restart the application
+        env:
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+        run: |
+          ssh deploy@${REMOTE_HOST} "pushd ~/realworld && npm install && popd && pm2 restart ecosystem.config.js"
