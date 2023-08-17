@@ -59,11 +59,11 @@ jobs:
           REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
         # заливаем файлы при помощи rsync
         run: |
-          rsync -a --progress
-          --human-readable --delete
-          --exclude-from '.gitignore'
-          --exclude-from='.gitignore'
-          --exclude={'public/','\.[a-z]*','*.yml','*.md','*.png','docs/','test-support/'}
+          rsync -a --progress --human-readable --delete \
+          --exclude-from '.gitignore' \
+          --exclude .gitignore \
+          --exclude .git \
+          --exclude public \
           . deploy@$REMOTE_HOST:~/realworld/
       # job для перезапуска приложения при помощи pm2
       - name: Restart the application
