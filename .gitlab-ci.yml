@@ -33,4 +33,16 @@ deploy:
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-    - scp -r $PWD deploy@45.11.24.226:~/realworld
+    - apt -qq update && apt upgrade -qqy openssh-client rsync
+    - eval $(ssh-agent -s)
+    - echo "${SSH_PRIVATE_KEY}" | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "${SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+    - rsync -a --progress
+      --human-readable --delete
+      --exclude-from '.gitignore'
+      --exclude-from='.gitignore'
+      --exclude={'public/','\.[a-z]*','*.yml','*.md','*.png','docs/','test-support/'}
+      . deploy@$REMOTE_HOST:~/realworld/
+    - ssh deploy@$REMOTE_HOST "pushd ~/realworld && npm install --legacy-peer-deps && pm2 restart realworld && popd"
