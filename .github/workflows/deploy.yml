@@ -7,34 +7,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # название job, на которое можно ссылаться из других мест,
-  # например, когда нам нужно указать, что две jobs
-  # работают последовательно:
-  # jobs:
-  #   build:
-  #   eslint:
-  #     needs: build
-  eslint:
-    # имя для отображения в интерфейсе GitHub
-    name: ESLint
-    # обязательный параметр, который указывает где будет запущена job: облачнный runner, self-hosted и т.д.
-    runs-on: ubuntu-latest
-    # последовательные задачи (шаги), важно помнить, что переменные окружения не сохраняются
-    # между шагами и их нужно пробрасывать, если требуется.
-    steps:
-      # указываем action, который будет запущен как часть job
-      # В текущем случае это клонирование репозитория
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 14.17.0
-          cache: 'npm'
-      # Установка зависимостей проекта
-      - name: Install dependencies
-        run: npm install --legacy-peer-deps
-      # Запуск ESLint
-      - name: Lint source code with ESLint
-        run: npm run lint
    deploy:
     runs-on: ubuntu-latest
     steps:
