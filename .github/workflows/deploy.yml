@@ -35,30 +35,25 @@ jobs:
       # Запуск ESLint
       - name: Lint source code with ESLint
         run: npm run lint
-  deploy:
+   deploy:
     runs-on: ubuntu-latest
-    needs: eslint
     steps:
       - uses: actions/checkout@v2
-      - name: Add ssh key
+      - name: Install SSH Key
         uses: shimataro/ssh-key-action@v2
         with:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
       - name: Copy files to the server
-        env:
-          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-        # заливаем файлы при помощи rsync
         run: |
           rsync -a --progress --human-readable --delete \
           --exclude-from '.gitignore' \
-          --exclude .gitignore \
-          --exclude .git \
+          --include-from .deploylist \
           --exclude public \
-          . deploy@$REMOTE_HOST:~/realworld/
-      # job для перезапуска приложения при помощи pm2
+          . $SSH_USER@$SSH_HOST:~/app/${{ github.head_ref }}/
       - name: Restart the application
         env:
-          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh deploy@$REMOTE_HOST "pushd ~/realworld && npm install && popd && pm2 restart ecosystem.config.js"
+          ssh $SSH_USER@$SSH_HOST "pushd ~/app/${{ github.head_ref }} && npm install && popd && pm2 restart ${{ github.head_ref }}"
