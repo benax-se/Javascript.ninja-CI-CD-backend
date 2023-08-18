@@ -1,0 +1,32 @@
+name: Create review app
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+      - name: Copy files to the server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          rsync -a -r --progress --human-readable --delete \
+          --exclude-from '.gitignore' \
+          --include-from .deploylist \
+          --exclude public \
+          . $SSH_USER@$SSH_HOST:~/app/${{ github.head_ref }}/
+      - name: Restarting the app
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh $SSH_USER@$SSH_HOST "cp ~/ecosystem.config.js ~/app/${{ github.head_ref }}/ && pushd ~/app/${{ github.head_ref }} && sed -i 's/realworld-db/${{ github.head_ref }}/' ecosystem.config.js && ./bin/create-db-copy.sh ${{ secrets.DB_PASSWORD }} ${{ github.head_ref }} && npm install && pm2 restart ecosystem.config.js --name ${{ github.head_ref }} --env production --update-env && popd"
