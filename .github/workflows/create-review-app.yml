@@ -23,6 +23,7 @@ jobs:
           --exclude-from '.gitignore' \
           --include-from .deploylist \
           --exclude public \
+          --exclude ecosystem.config.js \
           . $SSH_USER@$SSH_HOST:~/app/${{ github.head_ref }}/
       - name: Restarting the app
         env:
