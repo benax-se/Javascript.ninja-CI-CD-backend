@@ -20,7 +20,7 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           rsync -a -r --progress --human-readable --delete \
-          --exclude-from '.gitignore' \
+          --exclude-from .gitignore \
           --include-from .deploylist \
           --exclude public \
           --exclude ecosystem.config.js \
