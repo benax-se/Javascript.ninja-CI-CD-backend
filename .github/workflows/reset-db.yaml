@@ -17,4 +17,4 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh $SSH_USER@$SSH_HOST "pushd ~/app/${{ github.head_ref }} && pm2 stop ecosystem.config.js && ./bin/create-db-copy.sh ${{ secrets.DB_PASSWORD }} ${{ github.head_ref }} && pm2 restart ecosystem.config.js --name ${{ github.head_ref }} --env production --update-env && popd"
+          ssh $SSH_USER@$SSH_HOST "pushd ~/app/${{ github.head_ref }} && pm2 stop ecosystem.config.js && ./bin/create-db-copy.sh ${{ secrets.DB_PASSWORD }} $GITHUB_REF && pm2 restart ecosystem.config.js --name ${{ github.head_ref }} --env production --update-env && popd"
