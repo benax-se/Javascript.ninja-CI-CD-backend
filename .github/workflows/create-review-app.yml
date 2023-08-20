@@ -49,6 +49,8 @@ jobs:
       - if: steps.check_branch.output.status == 200
         name: Trigger frontend review app
         uses: octokit/request-action@v2.x
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           route: POST /repos/{owner}/{repo}/actions/workflows/publish-review-app.yml/dispatches
           owner: benax-se
@@ -57,18 +59,17 @@ jobs:
           inputs: |
             refName: ${{ github.head_ref }}
             dst: ${{ github.head_ref }}
-          env:
-            GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-        - if: steps.check_branch.output.status != 200
-          name: Trigger frontend review app
-          uses: octokit/request-action@v2.x
-          with:
-            route: POST /repos/{owner}/{repo}/actions/workflows/publish-review-app.yml/dispatches
-            owner: benax-se
-            repo: Javascript.ninja-CI-CD-frontend
-            ref: main
-            inputs: |
-              refName: main
-              dst: ${{ github.head_ref }}
-            env:
-              GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+      - if: steps.check_branch.output.status != 200
+        name: Trigger frontend review app
+        uses: octokit/request-action@v2.x
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+        with:
+          route: POST /repos/{owner}/{repo}/actions/workflows/publish-review-app.yml/dispatches
+          owner: benax-se
+          repo: Javascript.ninja-CI-CD-frontend
+          ref: main
+          inputs: |
+            refName: main
+            dst: ${{ github.head_ref }}
+          
