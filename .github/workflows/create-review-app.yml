@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: check-branch
-        uses: octokit/request-action@v2.xß
+        uses: octokit/request-action@v2.x
         with:
           route: GET /repos/owner/${repo}/git/ref/:ref
           owner: "benax-se"
