@@ -32,3 +32,43 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           ssh $SSH_USER@$SSH_HOST "cp ~/ecosystem.config.js ~/app/${{ github.head_ref }}/ && pushd ~/app/${{ github.head_ref }} && sed -i 's/realworld-db/${{ github.head_ref }}/' ecosystem.config.js && ./bin/create-db-copy.sh ${{ secrets.DB_PASSWORD }} ${{ github.head_ref }} && npm ci --legacy-peer-deps && pm2 restart ecosystem.config.js --name ${{ github.head_ref }} --env production --update-env && popd"
+  review:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - id: check-branch
+        uses: octokit/request-action@v2.x
+        with:
+          route: GET /repos/owner/${repo}/git/ref/:ref
+          owner: "benax-se"
+          repo: Javascript.ninja-CI-CD-frontend
+          ref: ${{ github.head_ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+      - if: steps.check_branch.output.status == 200
+        name: Trigger frontend review app
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{owner}/{repo}/actions/workflows/publish-review-app.yml/dispatches
+          owner: benax-se
+          repo: Javascript.ninja-CI-CD-frontend
+          ref: ${{ github.head_ref }}
+          inputs: |
+            refName: ${{ github.head_ref }}
+            dst: ${{ github.head_ref }}
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        - if: steps.check_branch.output.status != 200
+          name: Trigger frontend review app
+          uses: octokit/request-action@v2.x
+          with:
+            route: POST /repos/{owner}/{repo}/actions/workflows/publish-review-app.yml/dispatches
+            owner: benax-se
+            repo: Javascript.ninja-CI-CD-frontend
+            ref: main
+            inputs: |
+              refName: main
+              dst: ${{ github.head_ref }}
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
