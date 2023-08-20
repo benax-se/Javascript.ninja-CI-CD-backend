@@ -44,13 +44,13 @@ jobs:
           repo: Javascript.ninja-CI-CD-frontend
           ref: ${{ github.head_ref }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         continue-on-error: true
       - if: steps.check_branch.output.status == 200
         name: Trigger frontend review app
         uses: octokit/request-action@v2.x
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           route: POST /repos/{owner}/{repo}/actions/workflows/publish-review-app.yml/dispatches
           owner: benax-se
@@ -63,7 +63,7 @@ jobs:
         name: Trigger frontend review app
         uses: octokit/request-action@v2.x
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         with:
           route: POST /repos/{owner}/{repo}/actions/workflows/publish-review-app.yml/dispatches
           owner: benax-se
