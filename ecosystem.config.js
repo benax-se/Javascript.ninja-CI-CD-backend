@@ -3,7 +3,6 @@ module.exports = {
     {
       name: process.env.DB_NAME,
       script: 'lib/server.js',
-      watch: '.',
       env_production: {
         NODE_ENV: 'production',
       },
