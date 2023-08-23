@@ -55,3 +55,4 @@ deploy:
     url: http://$CI_COMMIT_REF_SLUG.$APP_HOST/
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
+    
