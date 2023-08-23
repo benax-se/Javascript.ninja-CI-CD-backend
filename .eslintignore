@@ -1,2 +1,5 @@
 _coverage/
 node_modules/
+.github/
+.gitlab-ci.yml
+README.md

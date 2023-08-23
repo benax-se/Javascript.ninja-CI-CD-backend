@@ -17,8 +17,7 @@ module.exports = {
       repo: process.env.REPOSITORY_URL,
       path: process.env.DEPLOY_DST,
       ssh_options: ['StrictHostKeyChecking=no'],
-      'post-deploy':
-        `cp ../.env . && npm install && env DB_NAME=${process.env.DB_NAME} pm2 startOrRestart ecosystem.config.js --env production --update-env`,
+      'post-deploy': `cp ../.env . && npm install --legacy-peer-deps && env DB_NAME=${process.env.DB_NAME} pm2 startOrRestart ecosystem.config.js --env production --update-env`,
     },
   },
 };
