@@ -1,3 +1,4 @@
 _coverage
-.github
+.github/
 .gitlab-ci.yml
+README.md
