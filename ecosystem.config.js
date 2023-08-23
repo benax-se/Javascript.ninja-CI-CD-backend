@@ -13,7 +13,7 @@ module.exports = {
     production: {
       user: process.env.SSH_USER,
       host: process.env.SSH_HOST,
-      ref: `origin-gl/${process.env.DEPLOY_BRANCH}`,
+      ref: `origin/${process.env.DEPLOY_BRANCH}`,
       repo: process.env.REPOSITORY_URL,
       path: process.env.DEPLOY_DST,
       ssh_options: ['StrictHostKeyChecking=no'],
