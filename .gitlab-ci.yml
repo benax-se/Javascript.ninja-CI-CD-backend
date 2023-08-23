@@ -38,6 +38,7 @@ deploy:
     REPOSITORY_URL: 'git@gitlab.com:benaxscope/javascript.ninja-ci-cd-backend.git'
     DEPLOY_DST: '/home/deploy/app/$CI_COMMIT_REF_SLUG'
     DB_NAME: $CI_COMMIT_REF_SLUG
+    DEPLOY_BRANCH: $CI_COMMIT_REF_NAME
   script:
     - npm i -g pm2
     - ssh -q $SSH_USER@$SSH_HOST [[ ! -d "$DEPLOY_DST" ]] && pm2 deploy ecosystem.config.js production setup
