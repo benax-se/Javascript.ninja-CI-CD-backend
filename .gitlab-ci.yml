@@ -57,7 +57,7 @@ deploy:
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
 
-deploy:
+create_review_app:
   stage: review
   extends:
     - .setup_ssh
@@ -80,7 +80,7 @@ deploy:
     - ssh -q $SSH_USER@$SSH_HOST "$DEPLOY_DST/current/bin/create-db-copy.sh $DB_PASSWORD $DB_NAME"
     - ssh -q $SSH_USER@$SSH_HOST "cd $DEPLOY_DST/current && env DB_NAME=$DB_NAME pm2 start ecosystem.config.js --env production --update-env"
   environment:
-    name: reivew/$CI_COMMIT_REF_NAME
+    name: review/$CI_COMMIT_REF_NAME
     url: http://$CI_COMMIT_REF_SLUG.$APP_HOST/
     on_stop: stop_review
   rules:
@@ -93,10 +93,13 @@ stop_review:
   stage: review
   extends:
     - .setup_ssh
+  environment:
+    name: review/$CI_COMMIT_REF_NAME
+    action: stop
   variables:
     REPOSITORY_URL: 'git@gitlab.com:benaxscope/javascript.ninja-ci-cd-backend.git'
     DEPLOY_DST: '/home/deploy/app/$CI_COMMIT_REF_SLUG'
-   script:
+  script:
     - |
       ssh $SSH_USER@$SSH_HOST <<EOF
         cd $DEPLOY_DST/current
