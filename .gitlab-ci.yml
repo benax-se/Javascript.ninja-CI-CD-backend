@@ -1,8 +1,7 @@
 stages:
   - test
   - build
-  - deploy
-  - review
+  - push
 
 .node:
   image: node:14.17.0-alpine
@@ -17,6 +16,8 @@ stages:
 
 .docker:
   image: docker:20
+  services:
+    - docker:dind
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
 
@@ -29,6 +30,7 @@ lint:
     - npm run lint
 
 build:
+  stage: build
   extends:
     - .docker
   script:
@@ -44,7 +46,7 @@ build:
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
 
 push_latest:
-  stage: build
+  stage: push
   extends:
     - .docker
   variables:
