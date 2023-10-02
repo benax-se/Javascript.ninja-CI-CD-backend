@@ -2,6 +2,7 @@ stages:
   - test
   - build
   - push
+  - deploy
 
 .node:
   image: node:14.17.0-alpine
@@ -57,6 +58,24 @@ push_latest:
     - docker push $CI_REGISTRY_IMAGE:latest
   only:
     - main
+
+deploy:
+  tags:
+    - remote
+  stage: deploy
+  variables: 
+    GIT_STRATEGY: none
+  environment:
+    name: production
+    url: http://$CI_COMMIT_REF_SLUG.$APP_HOST/
+  script:
+    - docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    - mkdir -p ~/deploy/$CI_COMMIT_REF_SLUG
+    - cp ~/docker-compose.yml ~/deploy/$CI_COMMIT_REF_SLUG
+    - docker stack deploy $CI_COMMIT_REF_SLUG -c /home/gitlab-runner/deploy/$CI_COMMIT_REF_SLUG/docker-compose.yml --with-registry-auth
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
+  
 
 # deploy:
 #   stage: deploy
