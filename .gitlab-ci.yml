@@ -3,6 +3,7 @@ stages:
   - build
   - push
   - deploy
+  - review
 
 .node:
   image: node:14.17.0-alpine
@@ -77,107 +78,47 @@ deploy:
     - docker stack deploy $CI_COMMIT_REF_SLUG -c /home/gitlab-runner/deploy/$CI_COMMIT_REF_SLUG/docker-compose.yml --with-registry-auth
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
-  
 
-# deploy:
-#   stage: deploy
-#   extends:
-#     - .setup_ssh
-#   variables:
-#     REPOSITORY_URL: 'git@gitlab.com:benaxscope/javascript.ninja-ci-cd-backend.git'
-#     DEPLOY_DST: '/home/deploy/app/$CI_COMMIT_REF_SLUG'
-#     DB_NAME: $CI_COMMIT_REF_SLUG
-#     DEPLOY_BRANCH: $CI_COMMIT_REF_NAME
-#   script:
-#     - npm i -g pm2
-#     - ssh -q $SSH_USER@$SSH_HOST [[ ! -d "$DEPLOY_DST" ]] && pm2 deploy ecosystem.config.js production setup
-#     - |
-#       ssh $SSH_USER@$SSH_HOST <<EOF
-#         echo "DB_NAME=$DB_NAME" > $DEPLOY_DST/.env
-#         echo "DB_USER=$DB_USER" >> $DEPLOY_DST/.env
-#         echo "DB_PASSWORD=$DB_PASSWORD" >> $DEPLOY_DST/.env
-#         echo "SECRET=$SECRET" >> $DEPLOY_DST/.env
-#       EOF
-#     - pm2 deploy ecosystem.config.js production --update-env
-#   environment:
-#     name: production
-#     url: http://$CI_COMMIT_REF_SLUG.$APP_HOST/
-#   rules:
-#     - if: $CI_COMMIT_BRANCH == 'main'
+create_review_app:
+  tags:
+    - remote
+  stage: review
+  variables: 
+    GIT_STRATEGY: none
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    - mkdir -p ~/deploy/$CI_COMMIT_REF_SLUG
+    - cp ~/docker-compose.yml ~/deploy/$CI_COMMIT_REF_SLUG
+    - docker stack deploy $CI_COMMIT_REF_SLUG -c /home/gitlab-runner/deploy/$CI_COMMIT_REF_SLUG/docker-compose.yml --with-registry-auth
+  environment:
+    name: review/$CI_COMMIT_REF_NAME
+    url: http://$CI_COMMIT_REF_SLUG.$APP_HOST/
+    on_stop: stop_review
+  rules:
+    - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-# create_review_app:
-#   stage: review
-#   extends:
-#     - .setup_ssh
-#   variables:
-#     REPOSITORY_URL: 'git@gitlab.com:benaxscope/javascript.ninja-ci-cd-backend.git'
-#     DEPLOY_DST: '/home/deploy/app/$CI_COMMIT_REF_SLUG'
-#     DB_NAME: $CI_COMMIT_REF_SLUG
-#     DEPLOY_BRANCH: $CI_COMMIT_REF_NAME
-#     BRANCH_EXISTS_URL: 'https://gitlab.com/api/v4/projects/$FRONTEND_PROJECT_ID/repository/branches/$CI_COMMIT_REF_NAME'
-#     CREATE_BRANCH_URL: 'https://gitlab.com/api/v4/projects/$FRONTEND_PROJECT_ID/repository/branches?branch=$CI_COMMIT_REF_NAME&ref=$CI_DEFAULT_BRANCH'
-#     TRIGGER_PIPELINE_URL: 'https://gitlab.com/api/v4/projects/$FRONTEND_PROJECT_ID/pipeline?ref=$CI_COMMIT_REF_NAME'
-#   script:
-#     - npm i -g pm2
-#     - ssh -q $SSH_USER@$SSH_HOST [[ ! -d "$DEPLOY_DST" ]] && pm2 deploy ecosystem.config.js production setup
-#     - |
-#       ssh $SSH_USER@$SSH_HOST <<EOF
-#         echo "DB_NAME=$DB_NAME" > $DEPLOY_DST/.env
-#         echo "DB_USER=$DB_USER" >> $DEPLOY_DST/.env
-#         echo "DB_PASSWORD=$DB_PASSWORD" >> $DEPLOY_DST/.env
-#         echo "SECRET=$SECRET" >> $DEPLOY_DST/.env
-#       EOF
-#     - pm2 deploy ecosystem.config.js production --update-env
-#     - ssh -q $SSH_USER@$SSH_HOST "$DEPLOY_DST/current/bin/create-db-copy.sh $DB_PASSWORD $DB_NAME"
-#     - ssh -q $SSH_USER@$SSH_HOST "cd $DEPLOY_DST/current && env DB_NAME=$DB_NAME pm2 start ecosystem.config.js --env production --update-env"
-#     - 'status_code=$(curl -I --header "PRIVATE-TOKEN: $PAT_TOKEN" --write-out "%{http_code}" --silent --output /dev/null "$BRANCH_EXISTS_URL")'
-#     - '[[ "$status_code" -ne 204 ]] && status_code=$(curl -X POST --header "PRIVATE-TOKEN: $PAT_TOKEN" --write-out "%{http_code}" --silent --output /dev/null "$CREATE_BRANCH_URL")'
-#     - '[[ "$status_code" -ne 400 ]] && echo "Branch already exists" && exit 0'
-#     - 'curl -X POST --header "PRIVATE-TOKEN: $PAT_TOKEN" --write-out "%{http_code}" --silent --output /dev/null "$TRIGGER_PIPELINE_URL"'
+stop_review:
+  tags:
+    - remote
+  stage: review
+  variables: 
+    GIT_STRATEGY: none
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker stack rm $CI_COMMIT_REF_SLUG
+    - docker rmi $CI_REGISTRY
+  environment:
+    name: review/$CI_COMMIT_REF_NAME
+    action: stop
+  rules:
+    - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
 
-#   environment:
-#     name: review/$CI_COMMIT_REF_NAME
-#     url: http://$CI_COMMIT_REF_SLUG.$APP_HOST/
-#     on_stop: stop_review
-#   rules:
-#     - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
-#       when: never
-#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-
-# stop_review:
-#   stage: review
-#   extends:
-#     - .setup_ssh
-#   environment:
-#     name: review/$CI_COMMIT_REF_NAME
-#     action: stop
-#   variables:
-#     DEPLOY_DST: '/home/deploy/app/$CI_COMMIT_REF_SLUG'
-#     DB_NAME: $CI_COMMIT_REF_SLUG
-#   script:
-#     - ssh $SSH_USER@$SSH_HOST "pushd $DEPLOY_DST/current && pwd && pm2 stop $DB_NAME && pm2 delete $DB_NAME && ./bin/drop-db.sh $DB_PASSWORD $DB_NAME && popd && rm -rf $DEPLOY_DST"
-#   rules:
-#     - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
-#       when: never
-#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-#       when: manual
-
-# reset_db:
-#   stage: review
-#   extends:
-#     - .setup_ssh
-#   variables:
-#     DEPLOY_DST: '/home/deploy/app/$CI_COMMIT_REF_SLUG'
-#     DB_NAME: $CI_COMMIT_REF_SLUG
-#   script:
-#     - |
-#       ssh $SSH_USER@$SSH_HOST <<EOF
-#         ./$DEPLOY_DST/current/bin/create-db-copy.sh "$DB_PASSWORD" "$DB_NAME"
-#       EOF
-#   rules:
-#     - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
-#       when: never
-#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-#       when: manual
     
