@@ -30,6 +30,8 @@ lint:
   script:
     - npm install
     - npm run lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 build:
   stage: build
@@ -46,6 +48,9 @@ build:
       .
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 push_latest:
   stage: push
