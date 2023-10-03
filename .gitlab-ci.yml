@@ -116,7 +116,7 @@ stop_review:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - docker stack rm $CI_COMMIT_REF_SLUG
-    - docker rmi $CI_REGISTRY:$CI_COMMIT_REF_SLUG
+    - docker rmi $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
     - rm -rf ~/deploy/$CI_COMMIT_REF_SLUG
   environment:
     name: review/$CI_COMMIT_REF_NAME
