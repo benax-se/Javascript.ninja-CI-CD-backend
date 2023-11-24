@@ -1,9 +1,11 @@
+---
 stages:
   - test
   - build
   - push
   - deploy
   - review
+  - post-review
 
 .node:
   image: node:14.17.0-alpine
@@ -14,7 +16,7 @@ stages:
     paths:
       - .npm/
   before_script:
-    - npm ci --cache .npm --prefer-online
+    - npm ci --cache .npm --prefer-offline
 
 .docker:
   image: docker:20
@@ -23,17 +25,25 @@ stages:
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
 
+.docker_auth:
+  before_script:
+    - docker login -u $CI_DEPLOY_USER -p $CI_DEPLOY_PASSWORD $CI_REGISTRY
+
 lint:
   extends:
-  - .node
+    - .node
   stage: test
   script:
     - npm install
     - npm run lint
+    - npm run check:format
   rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
 
 build:
+  needs: ["lint"]
   stage: build
   extends:
     - .docker
@@ -51,6 +61,7 @@ build:
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
 
 push_latest:
   stage: push
@@ -66,65 +77,112 @@ push_latest:
     - main
 
 deploy:
-  tags:
-    - remote
   stage: deploy
-  variables: 
-    GIT_STRATEGY: none
+  image:
+    name: lachlanevenson/k8s-kubectl:v1.21.1
+    entrypoint: ["/bin/sh", "-c"]
+  script:
+    - cd k8s/
+    - sed -i "s~__CI_REGISTRY_IMAGE__~${CI_REGISTRY_IMAGE}~" node.deployment.yml
+    - sed -i "s/__CI_ENVIRONMENT_SLUG__/${CI_ENVIRONMENT_SLUG}/" node.deployment.yml ingress.yml node.service.yml postgres.deployment.yml postgres.storage.yml postgres.service.yml postgres.configmap.yml
+    - sed -i "s/__VERSION__/${CI_COMMIT_REF_SLUG}/" node.deployment.yml
+    - kubectl apply -f postgres.configmap.yml
+    - kubectl apply -f postgres.storage.yml
+    - kubectl apply -f postgres.deployment.yml
+    - kubectl apply -f postgres.service.yml || true
+    - kubectl apply -f node.deployment.yml
+    - kubectl apply -f node.service.yml || true
+    - kubectl apply -f ingress.yml
+    - kubectl rollout status -f node.deployment.yml
   environment:
     name: production
-    url: http://$CI_COMMIT_REF_SLUG.$APP_HOST/
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-    - docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-    - mkdir -p ~/deploy/$CI_COMMIT_REF_SLUG
-    - cp ~/docker-compose.yml ~/deploy/$CI_COMMIT_REF_SLUG
-    - docker stack deploy $CI_COMMIT_REF_SLUG -c /home/gitlab-runner/deploy/$CI_COMMIT_REF_SLUG/docker-compose.yml --with-registry-auth
+    url: http://production-$APP_HOST/
+    kubernetes:
+      namespace: ci-cd-workshop
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
 
 create_review_app:
-  tags:
-    - remote
   stage: review
-  variables: 
-    GIT_STRATEGY: none
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  needs: ["build"]
+  image:
+    name: lachlanevenson/k8s-kubectl:v1.21.1
+    entrypoint: ["/bin/sh", "-c"]
+  variables:
+    BRANCH_EXISTS_URL: 'https://gitlab.com/api/v4/projects/$FRONTEND_PROJECT_ID/repository/branches/$CI_COMMIT_REF_NAME'
+    CREATE_BRANCH_URL: 'https://gitlab.com/api/v4/projects/$FRONTEND_PROJECT_ID/repository/branches?branch=$CI_COMMIT_REF_NAME&ref=$CI_DEFAULT_BRANCH'
   script:
-    - docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-    - mkdir -p ~/deploy/$CI_COMMIT_REF_SLUG
-    - cp ~/docker-compose.yml ~/deploy/$CI_COMMIT_REF_SLUG
-    - docker stack deploy $CI_COMMIT_REF_SLUG -c /home/gitlab-runner/deploy/$CI_COMMIT_REF_SLUG/docker-compose.yml --with-registry-auth
+    - apk add --update curl
+    - cd k8s/
+    - sed -i "s~__CI_REGISTRY_IMAGE__~${CI_REGISTRY_IMAGE}~" node.deployment.yml
+    - sed -i "s/__CI_ENVIRONMENT_SLUG__/${CI_ENVIRONMENT_SLUG}/" node.deployment.yml ingress.yml node.service.yml postgres.deployment.yml postgres.storage.yml postgres.service.yml postgres.configmap.yml
+    - sed -i "s/__VERSION__/${CI_COMMIT_REF_SLUG}/" node.deployment.yml
+    - kubectl apply -f postgres.configmap.yml
+    - kubectl apply -f postgres.storage.yml
+    - kubectl apply -f postgres.deployment.yml
+    - kubectl apply -f postgres.service.yml || true
+    - kubectl apply -f node.deployment.yml
+    - kubectl apply -f node.service.yml || true
+    - kubectl apply -f ingress.yml
+    - kubectl rollout status -f node.deployment.yml
+    - 'status_code=$(curl -I --header "PRIVATE-TOKEN: $PAT_TOKEN" --write-out "%{http_code}" --silent --output /dev/null "$BRANCH_EXISTS_URL")'
+    - '[[ "$status_code" -ne 204 ]] && status_code=$(curl -X POST --header "PRIVATE-TOKEN: $PAT_TOKEN" --write-out "%{http_code}" --silent --output /dev/null "$CREATE_BRANCH_URL")'
+    - '[[ "$status_code" -ne 400 ]] && echo "Branch already exists" && exit 0'
   environment:
     name: review/$CI_COMMIT_REF_NAME
-    url: http://$CI_COMMIT_REF_SLUG.$APP_HOST/
+    url: http://$CI_COMMIT_REF_SLUG-$APP_HOST/
     on_stop: stop_review
+    kubernetes:
+      namespace: ci-cd-workshop
+  rules:
+    - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+
+create_review_frontend_app:
+  stage: post-review
+  needs: ["create_review_app"]
+  trigger:
+    project: "ci-cd-workshop1/react-redux-realworld-example-app"
+    branch: $CI_COMMIT_REF_NAME
+    strategy: depend
   rules:
     - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 stop_review:
-  tags:
-    - remote
   stage: review
-  variables: 
-    GIT_STRATEGY: none
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-    - docker stack rm $CI_COMMIT_REF_SLUG
-    - docker rmi $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
-    - rm -rf ~/deploy/$CI_COMMIT_REF_SLUG
+  image:
+    name: lachlanevenson/k8s-kubectl:v1.21.1
+    entrypoint: ["/bin/sh", "-c"]
   environment:
     name: review/$CI_COMMIT_REF_NAME
     action: stop
+  script:
+    - kubectl delete ing -l ref=${CI_ENVIRONMENT_SLUG}
+    - kubectl delete all -l ref=${CI_ENVIRONMENT_SLUG}
   rules:
     - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: manual
 
-    
+reset_db:
+  stage: review
+  variables:
+    DEPLOY_DST: '/home/deploy/app/$CI_COMMIT_REF_SLUG'
+    DB_NAME: $CI_COMMIT_REF_SLUG
+  script:
+    - |
+      ssh $SSH_USER@$SSH_HOST <<EOF
+        ./$DEPLOY_DST/current/bin/create-db-copy "$DB_PASSWORD" "$DB_NAME"
+      EOF
+  rules:
+    - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual

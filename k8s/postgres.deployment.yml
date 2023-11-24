@@ -1,0 +1,33 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-__CI_ENVIRONMENT_SLUG__
+  namespace: ci-cd-workshop
+  labels:
+    app: postgres
+    ref: __CI_ENVIRONMENT_SLUG__
+    track: stable
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      ref: __CI_ENVIRONMENT_SLUG__
+  template:
+    metadata:
+      labels:
+        app: postgres
+        ref: __CI_ENVIRONMENT_SLUG__
+        track: stable
+    spec:
+      containers:
+        - image: postgres:13.2
+          name: postgres
+          imagePullPolicy: 'IfNotPresent'
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - configMapRef:
+                name: postgres-config-__CI_ENVIRONMENT_SLUG__
+      restartPolicy: Always

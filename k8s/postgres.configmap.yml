@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config-__CI_ENVIRONMENT_SLUG__
+  namespace: ci-cd-workshop
+  labels:
+    app: postgres
+    ref: __CI_ENVIRONMENT_SLUG__
+    track: stable
+data:
+  POSTGRES_DB: realworld
+  POSTGRES_USER: realworld
+  POSTGRES_PASSWORD: realworld
