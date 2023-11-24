@@ -1,0 +1,3 @@
+ci_access:
+  projects:
+    - id: benaxscope/javascript.ninja-ci-cd-backend
