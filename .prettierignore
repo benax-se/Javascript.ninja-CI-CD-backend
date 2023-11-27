@@ -1,5 +1,5 @@
 _coverage
-.github/
+hidden.github/
 ecosystem.config.js
 .gitlab-ci.yml
 k8s/
