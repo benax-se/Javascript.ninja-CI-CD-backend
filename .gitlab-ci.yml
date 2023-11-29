@@ -7,6 +7,12 @@ stages:
   - review
   - post-review
 
+variables:
+  REVIEW_BASE_DOMAIN: "158-160-134-135.nip.io"
+  DOMAIN: "158-160-134-135.nip.io"
+  LIVE_DOMAIN: "production-158-160-134-135.nip.io"
+  KUBE_NAMESPACE: ci-cd-workshop
+
 .node:
   image: node:14.17.0-alpine
   cache:
@@ -83,28 +89,31 @@ push_latest:
 deploy:
   stage: deploy
   image:
-    name: lachlanevenson/k8s-kubectl:v1.21.1
+    name: alpine/k8s:1.28.4
     entrypoint: ["/bin/sh", "-c"]
   extends:
     - .k8s_set_project_context
   script:
-    - cd k8s/
-    - sed -i "s~__CI_REGISTRY_IMAGE__~${CI_REGISTRY_IMAGE}~" node.deployment.yml
-    - sed -i "s/__CI_ENVIRONMENT_SLUG__/${CI_ENVIRONMENT_SLUG}/" node.deployment.yml ingress.yml node.service.yml postgres.deployment.yml postgres.storage.yml postgres.service.yml postgres.configmap.yml
-    - sed -i "s/__VERSION__/${CI_COMMIT_REF_SLUG}/" node.deployment.yml
-    - kubectl apply -f postgres.configmap.yml
-    - kubectl apply -f postgres.storage.yml
-    - kubectl apply -f postgres.deployment.yml
-    - kubectl apply -f postgres.service.yml || true
-    - kubectl apply -f node.deployment.yml
-    - kubectl apply -f node.service.yml || true
-    - kubectl apply -f ingress.yml
-    - kubectl rollout status -f node.deployment.yml
+    - |
+      helm repo add --username gitlab-ci-token \
+        --password $CI_JOB_TOKEN \
+        ci-cd-workshop \
+        ${CI_API_V4_URL}/projects/52496363/packages/helm/stable
+      helm repo update
+      helm upgrade \
+        --install \
+        --set node.image.tag="$CI_COMMIT_REF_NAME" \
+        --set web.image.tag="$CI_COMMIT_REF_NAME" \
+        --set ciVars.domain="$DOMAIN" \
+        --set ciVars.CI_ENVIRONMENT_SLUG="$CI_ENVIRONMENT_SLUG" \
+        --set ciVars.CI_PROJECT_PATH_SLUG="$CI_PROJECT_PATH_SLUG" \
+        production \
+        ci-cd-workshop/app
   environment:
     name: production
-    url: http://production-$APP_HOST/
+    url: http://$LIVE_DOMAIN/
     kubernetes:
-      namespace: ci-cd-workshop
+      namespace: "$KUBE_NAMESPACE"
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
 
@@ -112,36 +121,39 @@ create_review_app:
   stage: review
   needs: ["build"]
   image:
-    name: lachlanevenson/k8s-kubectl:v1.21.1
+    name: alpine/k8s:1.28.4
     entrypoint: ["/bin/sh", "-c"]
+  extends:
+    - .k8s_set_project_context
   variables:
     BRANCH_EXISTS_URL: 'https://gitlab.com/api/v4/projects/$FRONTEND_PROJECT_ID/repository/branches/$CI_COMMIT_REF_NAME'
     CREATE_BRANCH_URL: 'https://gitlab.com/api/v4/projects/$FRONTEND_PROJECT_ID/repository/branches?branch=$CI_COMMIT_REF_NAME&ref=$CI_DEFAULT_BRANCH'
-  extends:
-    - .k8s_set_project_context
   script:
     - apk add --update curl
-    - cd k8s/
-    - sed -i "s~__CI_REGISTRY_IMAGE__~${CI_REGISTRY_IMAGE}~" node.deployment.yml
-    - sed -i "s/__CI_ENVIRONMENT_SLUG__/${CI_ENVIRONMENT_SLUG}/" node.deployment.yml ingress.yml node.service.yml postgres.deployment.yml postgres.storage.yml postgres.service.yml postgres.configmap.yml
-    - sed -i "s/__VERSION__/${CI_COMMIT_REF_SLUG}/" node.deployment.yml
-    - kubectl apply -f postgres.configmap.yml
-    - kubectl apply -f postgres.storage.yml
-    - kubectl apply -f postgres.deployment.yml
-    - kubectl apply -f postgres.service.yml || true
-    - kubectl apply -f node.deployment.yml
-    - kubectl apply -f node.service.yml || true
-    - kubectl apply -f ingress.yml
-    - kubectl rollout status -f node.deployment.yml
+    - |
+      helm repo add --username gitlab-ci-token \
+        --password $CI_JOB_TOKEN \
+        ci-cd-workshop \
+        ${CI_API_V4_URL}/projects/52496363/packages/helm/stable
+      helm repo update
+      helm upgrade \
+        --install \
+        --set node.image.tag="$CI_COMMIT_REF_NAME" \
+        --set web.image.tag="$CI_COMMIT_REF_NAME" \
+        --set ciVars.domain="$DOMAIN" \
+        --set ciVars.CI_ENVIRONMENT_SLUG="$CI_ENVIRONMENT_SLUG" \
+        --set ciVars.CI_PROJECT_PATH_SLUG="$CI_PROJECT_PATH_SLUG" \
+        $CI_COMMIT_REF_NAME \
+        ci-cd-workshop/app
     - 'status_code=$(curl -I --header "PRIVATE-TOKEN: $PAT_TOKEN" --write-out "%{http_code}" --silent --output /dev/null "$BRANCH_EXISTS_URL")'
     - '[[ "$status_code" -ne 204 ]] && status_code=$(curl -X POST --header "PRIVATE-TOKEN: $PAT_TOKEN" --write-out "%{http_code}" --silent --output /dev/null "$CREATE_BRANCH_URL")'
     - '[[ "$status_code" -ne 400 ]] && echo "Branch already exists" && exit 0'
   environment:
     name: review/$CI_COMMIT_REF_NAME
-    url: http://$CI_COMMIT_REF_SLUG-$APP_HOST/
+    url: http://$CI_COMMIT_REF_NAME-$REVIEW_BASE_DOMAIN/
     on_stop: stop_review
     kubernetes:
-      namespace: ci-cd-workshop
+      namespace: "$KUBE_NAMESPACE"
   rules:
     - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
       when: never
@@ -152,7 +164,7 @@ create_review_frontend_app:
   stage: post-review
   needs: ["create_review_app"]
   trigger:
-    project: "ci-cd-workshop-benax/javascript.ninja-ci-cd-frontend"
+    project: "ci-cd-workshop1/react-redux-realworld-example-app"
     branch: $CI_COMMIT_REF_NAME
     strategy: depend
   rules:
@@ -163,7 +175,7 @@ create_review_frontend_app:
 stop_review:
   stage: review
   image:
-    name: lachlanevenson/k8s-kubectl:v1.21.1
+    name: alpine/k8s:1.28.4
     entrypoint: ["/bin/sh", "-c"]
   extends:
     - .k8s_set_project_context
@@ -171,28 +183,10 @@ stop_review:
     name: review/$CI_COMMIT_REF_NAME
     action: stop
   script:
-    - kubectl delete ing -l ref=${CI_ENVIRONMENT_SLUG}
-    - kubectl delete all -l ref=${CI_ENVIRONMENT_SLUG}
+    - helm uninstall $CI_COMMIT_REF_NAME
   rules:
     - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: manual
-    - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: manual
 
-reset_db:
-  stage: review
-  variables:
-    DEPLOY_DST: '/home/deploy/app/$CI_COMMIT_REF_SLUG'
-    DB_NAME: $CI_COMMIT_REF_SLUG
-  script:
-    - |
-      ssh $SSH_USER@$SSH_HOST <<EOF
-        ./$DEPLOY_DST/current/bin/create-db-copy "$DB_PASSWORD" "$DB_NAME"
-      EOF
-  rules:
-    - if: '$CI_MERGE_REQUEST_TITLE =~ /SKIP REVIEW/'
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: manual
